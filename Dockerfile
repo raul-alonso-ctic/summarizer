@@ -1,11 +1,12 @@
 FROM python:3.12-slim
 
-# Install system dependencies for pdf2image (poppler), LibreOffice for DOCX conversion, and unrar-free for RAR files
-# Note: unrar-free is available in standard Debian repos, while unrar requires non-free repos
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies for pdf2image (poppler), LibreOffice for DOCX conversion, and unrar for RAR files
+# Note: unrar (proprietary) is needed for RAR5 support; unrar-free fails on many RAR archives
+RUN sed -i 's/Components: main/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     libreoffice \
-    unrar-free \
+    unrar \
     default-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 

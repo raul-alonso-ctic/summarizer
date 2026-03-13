@@ -179,7 +179,7 @@ This ensures archives like RAR and 7Z are detected even when Google Drive doesn'
 
 - **poppler-utils**: PDF rendering (for pdf2image)
 - **LibreOffice**: DOCX/DOC/ODT to PDF conversion
-- **unrar-free**: RAR/CBR archive extraction
+- **unrar**: RAR/CBR archive extraction (proprietary, from non-free repos — required for RAR5 support)
 - **default-jre-headless**: Java Runtime Environment (LibreOffice dependency)
 
 All are installed in the Docker image.
