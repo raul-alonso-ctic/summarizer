@@ -65,7 +65,8 @@ def process_local_folder(
     max_tokens: int = 1024,
     temperature_vllm: float = 0.1,
     temperature_llm: float = 0.3,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    max_archive_files: int = 0
 ):
     """Procesa una carpeta local con archivos PDF, DOCX/DOC/ODT, ZIP/RAR/TAR, XML, EML e imágenes
     
@@ -126,7 +127,8 @@ def process_local_folder(
                 "max_tokens": max_tokens,
                 "temperature_vllm": temperature_vllm,
                 "temperature_llm": temperature_llm,
-                "top_p": top_p
+                "top_p": top_p,
+                "max_inner_files": max_archive_files
             }
             
             result = processor.process_file_from_source(source_config)
@@ -199,7 +201,8 @@ def process_gdrive_file(
     max_tokens: int = 1024,
     temperature_vllm: float = 0.1,
     temperature_llm: float = 0.3,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    max_archive_files: int = 0
 ):
     """Procesa un archivo específico de Google Drive
     
@@ -277,7 +280,8 @@ def process_gdrive_file(
             "max_tokens": max_tokens,
             "temperature_vllm": temperature_vllm,
             "temperature_llm": temperature_llm,
-            "top_p": top_p
+            "top_p": top_p,
+            "max_inner_files": max_archive_files
         }
         
         result = processor.process_file_from_source(source_config, file_id=file_id, file_name=file_name)
@@ -312,7 +316,8 @@ def retry_failed_files(
     max_tokens: int = 1024,
     temperature_vllm: float = 0.1,
     temperature_llm: float = 0.3,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    max_archive_files: int = 0
 ):
     """Reintenta procesar archivos que fallaron en un checkpoint anterior"""
     unattended_mode = os.getenv("UNATTENDED_MODE", "false").lower() == "true"
@@ -394,7 +399,8 @@ def retry_failed_files(
             "max_tokens": max_tokens,
             "temperature_vllm": temperature_vllm,
             "temperature_llm": temperature_llm,
-            "top_p": top_p
+            "top_p": top_p,
+            "max_inner_files": max_archive_files
         }
         
         results = []
@@ -804,7 +810,8 @@ def process_gdrive_folder(
     max_tokens: int = 1024,
     temperature_vllm: float = 0.1,
     temperature_llm: float = 0.3,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    max_archive_files: int = 0
 ):
     """Procesa una carpeta de Google Drive
     
@@ -849,7 +856,7 @@ python3 -m app.cli gdrive 1C4X9NnTiwFGz3We2D4j-VpINHgCVjV4Y --language es --outp
         print(f"Procesando carpeta de Google Drive: {folder_name} (ID: {folder_id})")
         print(f"Configuración: {initial_pages} página(s) inicial(es), {final_pages} página(s) final(es), max_tokens={max_tokens}, temp_vllm={temperature_vllm}, temp_llm={temperature_llm}")
         
-        response = processor.process_gdrive_folder(folder_id, folder_name, language, initial_pages, final_pages, max_tokens, temperature_vllm, temperature_llm, top_p)
+        response = processor.process_gdrive_folder(folder_id, folder_name, language, initial_pages, final_pages, max_tokens, temperature_vllm, temperature_llm, top_p, max_archive_files)
         
         # Guardar resultado (siempre guardar, con o sin --output)
         if output:
@@ -922,7 +929,9 @@ Ejemplos de uso:
                              help='Temperatura para el modelo LLM (texto, ZIP/XML/EML) (default: 0.3)')
     local_parser.add_argument('--top-p', type=float, default=0.9, metavar='F',
                              help='Top-p del modelo (default: 0.9)')
-    
+    local_parser.add_argument('--max-archive-files', type=int, default=0, metavar='N',
+                             help='Max files to process inside archives, 0=unlimited (default: 0)')
+
     # Comando para procesar carpeta de Google Drive
     gdrive_parser = subparsers.add_parser(
         'gdrive', 
@@ -949,7 +958,9 @@ Ejemplos de uso:
                               help='Temperatura para el modelo LLM (texto, ZIP/XML/EML) (default: 0.3)')
     gdrive_parser.add_argument('--top-p', type=float, default=0.9, metavar='F',
                               help='Top-p del modelo (default: 0.9)')
-    
+    gdrive_parser.add_argument('--max-archive-files', type=int, default=0, metavar='N',
+                              help='Max files to process inside archives, 0=unlimited (default: 0)')
+
     # Comando para reintentar archivos fallidos de un checkpoint
     retry_parser = subparsers.add_parser(
         'retry-failed',
@@ -971,7 +982,9 @@ Ejemplos de uso:
                               help='Temperatura para el modelo LLM (texto, ZIP/XML/EML) (default: 0.3)')
     retry_parser.add_argument('--top-p', type=float, default=0.9, metavar='F',
                               help='Top-p del modelo (default: 0.9)')
-    
+    retry_parser.add_argument('--max-archive-files', type=int, default=0, metavar='N',
+                              help='Max files to process inside archives, 0=unlimited (default: 0)')
+
     # Comando para convertir checkpoint a results.json
     checkpoint_parser = subparsers.add_parser(
         'checkpoint-to-results',
@@ -997,9 +1010,9 @@ Ejemplos de uso:
         sys.exit(1)
     
     if args.command == 'local':
-        process_local_folder(args.folder, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p)
+        process_local_folder(args.folder, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p, args.max_archive_files)
     elif args.command == 'retry-failed':
-        retry_failed_files(args.folder_id, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p)
+        retry_failed_files(args.folder_id, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p, args.max_archive_files)
     elif args.command == 'checkpoint-to-results':
         checkpoint_to_results(args.checkpoint_file, args.output)
     elif args.command == 'add-missing-files':
@@ -1008,21 +1021,22 @@ Ejemplos de uso:
         # Si se especifica un archivo, procesar solo ese archivo
         if args.file_name or args.file_id:
             process_gdrive_file(
-                args.folder_id, 
-                args.file_id, 
-                args.file_name, 
-                args.language, 
-                args.output, 
-                args.initial_pages, 
-                args.final_pages, 
-                args.max_tokens, 
+                args.folder_id,
+                args.file_id,
+                args.file_name,
+                args.language,
+                args.output,
+                args.initial_pages,
+                args.final_pages,
+                args.max_tokens,
                 args.temperature_vllm,
                 args.temperature_llm,
-                args.top_p
+                args.top_p,
+                args.max_archive_files
             )
         else:
             # Procesar toda la carpeta
-            process_gdrive_folder(args.folder_id, args.name, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p)
+            process_gdrive_folder(args.folder_id, args.name, args.language, args.output, args.initial_pages, args.final_pages, args.max_tokens, args.temperature_vllm, args.temperature_llm, args.top_p, args.max_archive_files)
 
 
 if __name__ == "__main__":

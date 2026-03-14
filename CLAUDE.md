@@ -136,6 +136,7 @@ Key variables in `.env` (see `.env.example`):
 | `BATCH_SIZE` | Files per batch | `1` |
 | `MAX_WORKERS` | Parallel worker threads | `1` |
 | `ARCHIVE_WORKERS` | Parallel workers for archive contents | `4` |
+| `ARCHIVE_MAX_FILES` | Max files to process inside archives (0=unlimited) | `0` |
 | `MAX_CONCURRENT_INFERENCE` | Global semaphore for inference calls | `16` |
 
 ### Content Processing

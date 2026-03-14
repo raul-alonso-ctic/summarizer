@@ -67,7 +67,8 @@ async def upload_files(
     temperature_vllm: float = Form(0.1),
     temperature_llm: float = Form(0.3),
     top_p: float = Form(0.9),
-    process_all: bool = Form(False)
+    process_all: bool = Form(False),
+    max_archive_files: int = Form(0)
 ):
     """Endpoint para subir archivos directamente desde la web UI"""
     results_html = ""
@@ -101,7 +102,8 @@ async def upload_files(
                     "max_tokens": max_tokens,
                     "temperature_vllm": temperature_vllm,
                     "temperature_llm": temperature_llm,
-                    "top_p": top_p
+                    "top_p": top_p,
+                    "max_inner_files": max_archive_files
                 }
                 
                 result = processor.process_file_from_source(source_config)
@@ -173,7 +175,8 @@ async def summarize(request: SummarizeRequest):
                 "final_pages": doc.source.final_pages,
                 "max_tokens": doc.source.max_tokens,
                 "temperature": doc.source.temperature,
-                "top_p": doc.source.top_p
+                "top_p": doc.source.top_p,
+                "max_inner_files": doc.source.max_inner_files
             }
             
             result = processor.process_file_from_source(source_config)
@@ -342,14 +345,15 @@ async def process_folder(request: ProcessFolderRequest):
     
     # Procesar carpeta
     response = processor.process_gdrive_folder(
-        folder_id, 
-        folder_name, 
+        folder_id,
+        folder_name,
         request.language,
         request.initial_pages,
         request.final_pages,
         request.max_tokens,
         request.temperature,
-        request.top_p
+        request.top_p,
+        request.max_inner_files
     )
     
     # Agregar información de checkpoint a la respuesta si está activo
