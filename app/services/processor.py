@@ -1805,34 +1805,76 @@ Responde en {language_name}.
         
         logger.info(f"Total de archivos encontrados: {total_files} ({len(all_files)} procesables, {len(ignored_files)} ignorados)")
         
+        # Crear resultados para archivos ignorados (no procesables) ANTES del procesamiento
+        # para que se guarden al checkpoint inmediatamente y no se pierdan si el proceso se interrumpe
+        ignored_results = []
+        for ignored_file in ignored_files:
+            file_name = ignored_file.get('name', '')
+            file_type = 'unknown'
+
+            if '.' in file_name:
+                name_lower = file_name.lower()
+                compound_extensions = ['.tar.gz', '.tar.bz2', '.tar.xz']
+                for ext in compound_extensions:
+                    if name_lower.endswith(ext):
+                        file_type = ext[1:].replace('.', '_')
+                        break
+                else:
+                    file_type = name_lower.rsplit('.', 1)[-1] if '.' in name_lower else 'unknown'
+
+            ignored_results.append(DocumentResult(
+                name=ignored_file['name'],
+                title="",
+                description="",
+                type=file_type,
+                path=ignored_file.get('path', ''),
+                file_id=ignored_file['id'],
+                metadata={"ignored": True}
+            ))
+
         # Inicializar checkpoint si está en modo desatendido
         if checkpoint_service:
             checkpoint_path = checkpoint_service.start_checkpoint(
                 folder_id, folder_name, total_files, config
             )
-            
-            # Filtrar archivos ya procesados (pero incluir fallidos para reintentar)
+
+            # Guardar archivos ignorados al checkpoint INMEDIATAMENTE
+            # para que no se pierdan si el proceso se interrumpe
             processed_files = checkpoint_service.get_processed_files()
-            
+            for ignored_result in ignored_results:
+                if ignored_result.file_id not in processed_files:
+                    checkpoint_service.mark_file_processed(
+                        ignored_result.file_id,
+                        ignored_result.name,
+                        ignored_result.model_dump()
+                    )
+
+            # Forzar guardado a disco tras añadir los ignorados
+            if ignored_results:
+                checkpoint_service._save_checkpoint()
+
+            # Re-obtener processed_files tras guardar los ignorados
+            processed_files = checkpoint_service.get_processed_files()
+
             # Archivos pendientes (incluye fallidos para reintentar) = todos los archivos - procesados_exitosos
             pending_files = [
-                f for f in all_files 
+                f for f in all_files
                 if f['id'] not in processed_files
             ]
-            
+
             # Informar sobre archivos fallidos que se van a reintentar
             failed_files = checkpoint_service.get_failed_files()
             if failed_files:
                 logger.info(f"⚠️  Se reintentarán {len(failed_files)} archivo(s) que fallaron anteriormente")
-            
+
             # Actualizar la lista de pending_files en el checkpoint
             checkpoint_service.checkpoint_data["pending_files"] = [f['id'] for f in pending_files]
             checkpoint_service._save_checkpoint()
-            
-            # Cargar resultados previos
+
+            # Cargar resultados previos (includes ignored files just saved)
             previous_results = checkpoint_service.get_results()
             results = []
-            
+
             # Convertir resultados previos a DocumentResult
             for prev_result in previous_results:
                 result_data = prev_result.get("result", {})
@@ -1842,14 +1884,14 @@ Responde en {language_name}.
                         results.append(doc_result)
                     except Exception as e:
                         logger.warning(f"Error cargando resultado previo: {e}")
-            
+
             all_files = pending_files
             if len(all_files) > 0:
                 logger.info(f"Iniciando procesamiento de {len(all_files)} archivos pendientes...")
             else:
                 logger.info("✓ Todos los archivos ya han sido procesados. No hay archivos pendientes.")
         else:
-            results = []
+            results = list(ignored_results)
         
         # Configuración de procesamiento por batches
         batch_size = int(os.getenv("BATCH_SIZE", "1"))  # Por defecto sin batches
@@ -1976,44 +2018,6 @@ Responde en {language_name}.
         logger.info(f"⏱️  TIEMPO TOTAL DE PROCESAMIENTO: {time_str} ({elapsed_time:.2f} segundos)")
         logger.info(f"📊 Archivos procesados: {len(results)}")
         logger.info("=" * 80)
-        
-        # Incluir archivos ignorados (no procesables) con metadata.ignored = True
-        for ignored_file in ignored_files:
-            # Determinar tipo de archivo simplemente por extensión
-            file_name = ignored_file.get('name', '')
-            file_type = 'unknown'
-            
-            if '.' in file_name:
-                # Obtener extensión (manejar extensiones compuestas como .tar.gz)
-                name_lower = file_name.lower()
-                # Verificar extensiones compuestas primero
-                compound_extensions = ['.tar.gz', '.tar.bz2', '.tar.xz']
-                for ext in compound_extensions:
-                    if name_lower.endswith(ext):
-                        file_type = ext[1:].replace('.', '_')  # tar.gz -> tar_gz
-                        break
-                else:
-                    # Extensión simple
-                    file_type = name_lower.rsplit('.', 1)[-1] if '.' in name_lower else 'unknown'
-            
-            ignored_result = DocumentResult(
-                name=ignored_file['name'],
-                title="",  # Title vacío
-                description="",  # Description vacío
-                type=file_type,
-                path=ignored_file.get('path', ''),
-                file_id=ignored_file['id'],
-                metadata={"ignored": True}
-            )
-            results.append(ignored_result)
-            
-            # Guardar en checkpoint como procesado (pero ignorado)
-            if checkpoint_service:
-                checkpoint_service.mark_file_processed(
-                    ignored_file['id'],
-                    ignored_file['name'],
-                    ignored_result.model_dump()
-                )
         
         # Incluir archivos fallidos del checkpoint con description y title vacíos
         if checkpoint_service:

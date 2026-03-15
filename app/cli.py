@@ -762,9 +762,35 @@ def checkpoint_to_results(
             )
             results.append(pending_result)
         
+        # Incluir archivos no procesables que no estén ya en los resultados
+        result_file_ids = {r.file_id for r in results if r.file_id}
+        for file_id, file_info in all_files_dict.items():
+            if file_id not in result_file_ids:
+                file_name = file_info.get('name', 'unknown')
+                file_type = 'unknown'
+                if '.' in file_name:
+                    name_lower = file_name.lower()
+                    compound_extensions = ['.tar.gz', '.tar.bz2', '.tar.xz']
+                    for ext in compound_extensions:
+                        if name_lower.endswith(ext):
+                            file_type = ext[1:].replace('.', '_')
+                            break
+                    else:
+                        file_type = name_lower.rsplit('.', 1)[-1] if '.' in name_lower else 'unknown'
+
+                results.append(DocumentResult(
+                    name=file_name,
+                    title="",
+                    description="",
+                    type=file_type,
+                    path=file_info.get('path', ''),
+                    file_id=file_id,
+                    metadata={"ignored": True}
+                ))
+
         # Ordenar resultados por path
         results.sort(key=lambda x: x.path or "")
-        
+
         # Guardar resultado
         if output:
             output_path = Path(output)  # Usar el nombre exacto sin timestamp
